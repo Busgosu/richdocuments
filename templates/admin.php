@@ -1,5 +1,8 @@
 <?php
 script('richdocuments', 'admin');
+
+/** @var \OCP\IL10N $l */
+/** @var array $_ */
 ?>
 <div class="section" id="richdocuments">
 	<h2><?php p($l->t('Collabora Online')) ?></h2>

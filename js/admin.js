@@ -4,9 +4,9 @@ $(document).ready(function(){
 
 	var documentsSettings = {
 		save : function() {
-			$('#wopi_apply').attr('disabled', true);
+			$('#docs_apply').attr('disabled', true);
 			var data = {
-				wopi_url  : $('#wopi_url').val()
+				wopi_url  : $('#docs_apply').val()
 			};
 
 			OC.msg.startAction('#documents-admin-msg', t('richdocuments', 'Saving...'));
@@ -18,10 +18,10 @@ $(document).ready(function(){
 		},
 
 		afterSave : function(response){
-			$('#wopi_apply').attr('disabled', false);
+			$('#docs_apply').attr('disabled', false);
 			OC.msg.finishedAction('#documents-admin-msg', response);
 		}
 	};
 
-	$('#wopi_apply').on('click', documentsSettings.save);
+	$('#docs_apply').on('click', documentsSettings.save);
 });

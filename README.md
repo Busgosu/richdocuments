@@ -1,37 +1,35 @@
-richdocuments – ownCloud application to integrate Collabora Online
-====================================================================
+richdocuments –  Application to integrate Collabora Online
+==========================================================
 
-Installation
-------------
+**An office app for [Nextcloud](http://nextcloud.com). Easily edit any office documents online, directly in your Nextcloud.**  
 
-    make dist
+![](https://nextcloud.com/wp-content/themes/next/assets/img/features/collabora-presentation.png)
 
-Creates a tarball. The contents should go under `owncloud/apps/richdocuments`.
 
-    rpmbuild -ba -vv owncloud-collabora-online.spec
+## Why is this so awesome?
 
-Creates an RPM package (tested only with openSUSE). The [CODE VM](https://collaboraoffice.com/code/) uses it.
+* :rocket: **Integration with other Nextcloud apps!** Currently sharing – more to come.
+* :see_no_evil: **We’re not reinventing the wheel!** Based on the great [Collabora Office](https://github.com/libreoffice/online).
 
-Memcache is a requirement (tested only with APCu). Install php-apcu, php5-apcu, or whatever this package is called on your Linux distro, and add the following line to owncloud/config/config.php:
+And in the works for the [coming versions](https://github.com/owncloud/richdocuments/milestones):
+* :pencil2: Live collaborative editing by multiple persons
 
-    'memcache.local' => '\OC\Memcache\APCu',
 
-From command line you can use:
+## Installation
 
-    occ config:system:set --value='\OC\Memcache\APCu' memcache.local
+This app requires a running LibreOfice Online server. You can find a Docker container as well as more information at https://nextcloud.com/collaboraonline/.
 
-You can enable richdocument application from the command line:
 
-    occ app:enable richdocuments
+## Supported Browsers
 
-You need to configure the WOPI Client URL, which is where the LibreOffice Online WebSocket Daemon (loolwsd) is listening. It is in Admin - Collabora Online section in ownCloud, or you can set it from command line:
+* Latest Firefox
+* Latest Chrome/Chromium
+* Latest Safari
+* Latest Internet Explorer/Microsoft Edge
 
-    occ config:app:set --value='https://<hostname or IP address>:<port>' richdocuments wopi_url
+## Maintainers
 
-Default port is 9980. If loolwsd was compiled without SSL (like in the [CODE VM](https://collaboraoffice.com/code/)), you have to write `http` instead of `https`. If you use SSL, and you get the following error:
+[Andras Timar](https://github.com/timar), [Lukas Reschke](https://github.com/LukasReschke) [and many more](https://github.com/owncloud/richdocuments/graphs/contributors)
 
-    cURL error 60: SSL certificate problem: self signed certificate in certificate chain
-
-You have to add the CA cert manually to ownCloud trusted cert storage:
-
-    cat ca-chain.cert.pem >> owncloud/resources/config/ca-bundle.crt
+If you’d like to join, just go through the [issue list](https://github.com/owncloud/richdocuments/issues?q=is%3Aopen+is%3Aissue+label%3A%22starter+issue%22) and fix some. :)   
+We’re also in [#nextcloud-dev on freenode IRC](https://webchat.freenode.net/?channels=nextcloud-dev).

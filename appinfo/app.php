@@ -1,10 +1,11 @@
 <?php
-
 /**
  * ownCloud - Richdocuments App
  *
  * @author Frank Karlitschek
+ * @author Lukas REschke
  * @copyright 2013-2014 Frank Karlitschek karlitschek@kde.org
+ * @copyright 2016 Lukas Reschke lukas@statuscode.ch
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU AFFERO GENERAL PUBLIC LICENSE
@@ -23,24 +24,7 @@
 
 namespace OCA\Richdocuments\AppInfo;
 
-use OCA\Richdocuments\Config;
-
-$app = new Application();
-$c = $app->getContainer();
-
 \OCP\App::registerAdmin('richdocuments', 'admin');
-\OCP\App::registerPersonal('richdocuments', 'personal');
-
-$navigationEntry = function () use ($c) {
-	return [
-		'id' => 'richdocuments_index',
-		'order' => 2,
-		'href' => $c->query('ServerContainer')->getURLGenerator()->linkToRoute('richdocuments.document.index'),
-		'icon' => $c->query('ServerContainer')->getURLGenerator()->imagePath('richdocuments', 'app.svg'),
-		'name' => $c->query('L10N')->t('Office')
-	];
-};
-$c->getServer()->getNavigationManager()->add($navigationEntry);
 
 //Script for registering file actions
 $eventDispatcher = \OC::$server->getEventDispatcher();
@@ -51,6 +35,3 @@ $eventDispatcher->addListener(
 		\OCP\Util::addStyle('richdocuments', 'viewer/odfviewer');
 	}
 );
-
-//Listen to delete file signal
-\OCP\Util::connectHook('OC_Filesystem', 'delete', "OCA\Richdocuments\Storage", "onDelete");

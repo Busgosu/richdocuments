@@ -3,7 +3,10 @@
  * ownCloud - Richdocuments App
  *
  * @author Victor Dubiniuk
+ * @author Lukas Reschke
+ *
  * @copyright 2014 Victor Dubiniuk victor.dubiniuk@gmail.com
+ * @copyright 2016 Lukas Reschke lukas@statuscode.ch
  *
  * This file is licensed under the Affero General Public License version 3 or
  * later.
@@ -12,51 +15,56 @@
 namespace OCA\Richdocuments\Controller;
 
 use \OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\StreamResponse;
 use \OCP\IRequest;
 use \OCP\IConfig;
 use \OCP\IL10N;
 use \OCP\AppFramework\Http\ContentSecurityPolicy;
-use \OCP\AppFramework\Http\JSONResponse;
 use \OCP\AppFramework\Http\TemplateResponse;
-
 use \OCA\Richdocuments\AppConfig;
 use \OCA\Richdocuments\Db;
 use \OCA\Richdocuments\Helper;
 use \OCA\Richdocuments\Storage;
-use \OCA\Richdocuments\Download;
-use \OCA\Richdocuments\DownloadResponse;
-use \OCA\Richdocuments\File;
-use \OCA\Richdocuments\Genesis;
 use \OC\Files\View;
 use \OCP\ICacheFactory;
 use \OCP\ILogger;
 
-class ResponseException extends \Exception {
-	private $hint;
-
-	public function __construct($description, $hint = '') {
-		parent::__construct($description);
-		$this->hint = $hint;
-	}
-
-	public function getHint() {
-		return $this->hint;
-	}
-}
 
 class DocumentController extends Controller {
-
+	/** @var string */
 	private $uid;
+	/** @var IL10N */
 	private $l10n;
+	/** @var IConfig */
 	private $settings;
+	/** @var AppConfig */
 	private $appConfig;
+	/** @var \OCP\ICache */
 	private $cache;
+	/** @var ILogger */
 	private $logger;
 	const ODT_TEMPLATE_PATH = '/assets/odttemplate.odt';
 
-	public function __construct($appName, IRequest $request, IConfig $settings, AppConfig $appConfig, IL10N $l10n, $uid, ICacheFactory $cache, ILogger $logger){
+	/**
+	 * @param string $appName
+	 * @param IRequest $request
+	 * @param IConfig $settings
+	 * @param AppConfig $appConfig
+	 * @param IL10N $l10n
+	 * @param $UserId
+	 * @param ICacheFactory $cache
+	 * @param ILogger $logger
+	 */
+	public function __construct($appName,
+								IRequest $request,
+								IConfig $settings,
+								AppConfig $appConfig,
+								IL10N $l10n,
+								$UserId,
+								ICacheFactory $cache,
+								ILogger $logger) {
 		parent::__construct($appName, $request);
-		$this->uid = $uid;
+		$this->uid = $UserId;
 		$this->l10n = $l10n;
 		$this->settings = $settings;
 		$this->appConfig = $appConfig;
@@ -65,9 +73,10 @@ class DocumentController extends Controller {
 	}
 
 	/**
-	 * @param \SimpleXMLElement $discovery
+	 * @param \SimpleXMLElement $discovery_parsed
 	 * @param string $mimetype
 	 * @param string $action
+	 * @return null|string
 	 */
 	private function getWopiSrcUrl($discovery_parsed, $mimetype, $action) {
 		if(is_null($discovery_parsed) || $discovery_parsed == false) {
@@ -223,18 +232,10 @@ class DocumentController extends Controller {
 			return @$b['mtime']-@$a['mtime'];
 		});
 
-		$session = new Db\Session();
-		$sessions = $session->getCollectionBy('file_id', $fileIds);
-
-		$members = array();
-		$member = new Db\Member();
-		foreach ($sessions as $session) {
-			$members[$session['es_id']] = $member->getActiveCollection($session['es_id']);
-		}
-
-		return array(
-			'status' => 'success', 'documents' => $documents,'sessions' => $sessions,'members' => $members
-		);
+		return [
+			'status' => 'success',
+			'documents' => $documents,
+		];
 	}
 
 	/**
@@ -284,12 +285,15 @@ class DocumentController extends Controller {
 
 	/**
 	 * @NoAdminRequired
+	 *
+	 * @param string $mimetype
+	 * @param string $filename
+	 * @param string $dir
+	 * @return array
 	 */
-	public function create(){
-		$mimetype = $this->request->post['mimetype'];
-		$filename = $this->request->post['filename'];
-		$dir = $this->request->post['dir'];
-
+	public function create($mimetype,
+						   $filename,
+						   $dir) {
 		$view = new View('/' . $this->uid . '/files');
 		if (!$dir){
 			$dir = '/';
@@ -448,11 +452,15 @@ class DocumentController extends Controller {
 	}
 
 	/**
+	 * Given an access token and a fileId, returns the contents of the file.
+	 * Expects a valid token in access_token parameter.
+	 *
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 * Given an access token and a fileId, returns the contents of the file.
-	 * Expects a valid token in access_token parameter.
+	 *
+	 * @param string $fileId
+	 * @return StreamResponse
 	 */
 	public function wopiGetFile($fileId){
 		$token = $this->request->getParam('access_token');
@@ -473,10 +481,10 @@ class DocumentController extends Controller {
 		$res = $row->getPathForToken($fileId, $version, $token);
 		$ownerid = $res['owner'];
 
+
 		// Login the user to see his mount locations
 		$this->loginUser($ownerid);
 
-		$filename = '';
 		// If some previous version is requested, fetch it from Files_Version app
 		if ($version !== '0') {
 			\OCP\JSON::checkAppEnabled('files_versions');
@@ -493,10 +501,13 @@ class DocumentController extends Controller {
 			$filename = '/files' . $res['path'];
 		}
 
-		// Close the session created for user login
-		\OC::$server->getSession()->close();
+		$view = new View('/' . $ownerid);
+		$filePath = $view->getLocalFile($filename);
 
-		return new DownloadResponse($this->request, $ownerid, $filename);
+		$response = new StreamResponse($filePath);
+		$response->addHeader('Content-Disposition', 'attachment');
+		$response->addHeader('Content-Type', 'application/octet-stream');
+		return $response;
 	}
 
 	/**
@@ -566,44 +577,13 @@ class DocumentController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @PublicPage
-	 * Process partial/complete file download
+	 *
+	 * @param string $fileId
+	 * @param string $name
+	 * @return array
 	 */
-	public function serve($esId){
-		$session = new Db\Session();
-		$session->load($esId);
-
-		$filename = $session->getGenesisUrl() ? $session->getGenesisUrl() : '';
-		return new DownloadResponse($this->request, $session->getOwner(), $filename);
-	}
-
-	/**
-	 * @NoAdminRequired
-	 */
-	public function download($path){
-		if (!$path){
-			$response = new JSONResponse();
-			$response->setStatus(Http::STATUS_BAD_REQUEST);
-			return $response;
-		}
-
-		$fullPath = '/files' . $path;
-		$fileInfo = \OC\Files\Filesystem::getFileInfo($path);
-		if ($fileInfo){
-			$file = new File($fileInfo->getId());
-			$genesis = new Genesis($file);
-			$fullPath = $genesis->getPath();
-		}
-		return new DownloadResponse($this->request, $this->uid, $fullPath);
-	}
-
-
-	/**
-	 * @NoAdminRequired
-	 */
-	public function rename($fileId){
-		$name = $this->request->post['name'];
-
+	public function rename($fileId,
+						   $name) {
 		$view = \OC\Files\Filesystem::getView();
 		$path = $view->getPath($fileId);
 
@@ -620,8 +600,11 @@ class DocumentController extends Controller {
 	}
 
 	/**
-	 * @NoAdminRequired
 	 * Get file information about single document with fileId
+	 *
+	 * @NoAdminRequired
+	 * @param string $fileId
+	 * @return array
 	 */
 	public function get($fileId){
 		$documents = array();
@@ -633,7 +616,8 @@ class DocumentController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * lists the documents the user has access to (including shared files, once the code in core has been fixed)
+	 *
+	 * Lists the documents the user has access to (including shared files, once the code in core has been fixed)
 	 * also adds session and member info for these files
 	 */
 	public function listAll(){

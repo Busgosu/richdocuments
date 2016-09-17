@@ -138,19 +138,6 @@ $.widget('oc.documentGrid', {
 			that.add(document);
 		});
 
-		$.each(sessions, function(i, session){
-			if (members[session.es_id].length > 0) {
-				var docElem = $(that.options.context + ' .document[data-id="'+session.file_id+'"]');
-				if (docElem.length > 0) {
-					docElem.attr('data-esid', session.es_id);
-					docElem.find('label').after('<img class="svg session-active" src="'+OC.imagePath('core','places/contacts-dark')+'">');
-					docElem.addClass('session');
-				} else {
-					console.log('Could not find file '+session.file_id+' for session '+session.es_id);
-				}
-			}
-		});
-
 		if (!hasDocuments){
 			$(this.options.context).before('<div id="emptycontent">'
 				+ t('richdocuments', 'No documents were found. Upload or create a document to get started!')
@@ -237,6 +224,7 @@ var documentsMain = {
 				$('#revViewer').remove();
 				$('#revViewerContainer').prepend($('<div id="revViewer">'));
 			}
+
 
 			$.get(OC.generateUrl('apps/richdocuments/wopi/token/{fileId}', { fileId: fileId }),
 				  function (result) {
@@ -360,8 +348,7 @@ var documentsMain = {
 			// make these revisions clickable/attach functionality
 			$('#revisionsContainer').on('click', '.versionPreview', function(e) {
 				e.preventDefault();
-				documentsMain.UI.showViewer(e.currentTarget.parentElement.dataset.fileid,
-				                            e.currentTarget.parentElement.dataset.title);
+				documentsMain.UI.showViewer(documentsMain.fileId, documentsMain.fileName);
 
 				// mark only current <li> as active
 				$(e.currentTarget.parentElement.parentElement).find('li').removeClass('active');
@@ -429,6 +416,7 @@ var documentsMain = {
 			$(document.body).prepend(documentsMain.UI.container);
 
 			$('title').text(title + ' - ' + documentsMain.UI.mainTitle);
+			console.log(documentsMain);
 
 			$.get(OC.generateUrl('apps/richdocuments/wopi/token/{fileId}', { fileId: documentsMain.fileId }),
 				function (result) {
@@ -439,6 +427,7 @@ var documentsMain = {
 						documentsMain.onEditorShutdown(t('richdocuments', 'Failed to aquire access token. Please re-login and try again.'));
 						return;
 					}
+
 
 					// WOPISrc - URL that loolwsd will access (ie. pointing to ownCloud)
 					var wopiurl = window.location.protocol + '//' + window.location.host + OC.generateUrl('apps/richdocuments/wopi/files/{file_id}', {file_id: documentsMain.fileId});
@@ -526,19 +515,6 @@ var documentsMain = {
 			$('.documentslist .progress').hide();
 		},
 
-		showLostConnection : function(){
-			$('#memberList .memberListButton').css({opacity : 0.3});
-			$('#ocToolbar').children(':not(#document-title)').hide();
-			$('<div id="connection-lost"></div>').prependTo('#memberList');
-			$('<div id="warning-connection-lost">' + t('richdocuments', 'No connection to server. Trying to reconnect.') +'<img src="'+ OC.imagePath('core', 'loading-dark.gif') +'" alt="" /></div>').prependTo('#ocToolbar');
-		},
-
-		hideLostConnection : function() {
-			$('#connection-lost,#warning-connection-lost').remove();
-			$('#ocToolbar').children(':not(#document-title,#saving-document)').show();
-			$('#memberList .memberListButton').css({opacity : 1});
-		},
-
 		notify : function(message){
 			OC.Notification.show(message);
 			setTimeout(OC.Notification.hide, 10000);
@@ -592,45 +568,18 @@ var documentsMain = {
 		documentsMain.overlay.documentOverlay('hide');
 	},
 
-	initSession: function(response) {
-		if(response && (response.id && !response.es_id)){
-			return documentsMain.view(response.id);
-		}
-
-		$('footer,nav').hide();
-		$(documentsMain.toolbar).appendTo('#header');
-
-		if (!response || !response.status || response.status==='error'){
-			documentsMain.onEditorShutdown(t('richdocuments', 'Failed to load this document. Please check if it can be opened with an external editor. This might also mean it has been unshared or deleted recently.'));
-			return;
-		}
+	initSession: function(fileId) {
 
 		//Wait for 3 sec if editor is still loading
 		if (!documentsMain.ready){
-			setTimeout(function(){ documentsMain.initSession(response); }, 3000);
+			setTimeout(function(){ documentsMain.initSession(fileId); }, 3000);
 			console.log('Waiting for the editor to start...');
 			return;
 		}
 
-		var pollUrl = documentsMain.isGuest
-				? OC.generateUrl('apps/richdocuments/session/guest/poll/{token}', {'token' : $("[name='document']").val()})
-				: OC.generateUrl('apps/richdocuments/session/user/poll'),
-			saveUrl = documentsMain.isGuest
-				? OC.generateUrl('apps/richdocuments/session/guest/save/{token}', {'token' : $("[name='document']").val()})
-				: OC.generateUrl('apps/richdocuments/session/user/save')
-				;
-		documentsMain.canShare = !documentsMain.isGuest
-				&& typeof OC.Share !== 'undefined' && response.permissions & OC.PERMISSION_SHARE;
-
 		// fade out file list and show the cloudsuite
 		$('#content-wrapper').fadeOut('fast').promise().done(function() {
-
-			documentsMain.fileId = response.file_id;
-			documentsMain.fileName = response.title;
-
-			documentsMain.esId = response.es_id;
-			documentsMain.memberId = response.member_id;
-
+			documentsMain.fileId = fileId;
 			documentsMain.loadDocument();
 
 			if (documentsMain.isGuest){
@@ -642,18 +591,8 @@ var documentsMain = {
 
 
 	joinSession: function(fileId) {
-		console.log('joining session '+fileId);
-		var url;
-		if (documentsMain.isGuest){
-			url = OC.generateUrl('apps/richdocuments/session/guest/join/{token}', {token: fileId});
-		} else {
-			url = OC.generateUrl('apps/richdocuments/session/user/join/{file_id}', {file_id: fileId});
-		}
-		$.post(
-			url,
-			{ name : $("[name='memberName']").val() },
-			documentsMain.initSession
-		);
+
+		documentsMain.initSession(fileId);
 	},
 
 	view : function(id){
@@ -1002,7 +941,7 @@ $(document).ready(function() {
 
 	OC.Upload._isReceivedSharedFile = function () {
 		return false;
-	}
+	};
 
 	var file_upload_start = $('#file_upload_start');
 	if (typeof supportAjaxUploadWithProgress !== 'undefined' && supportAjaxUploadWithProgress()) {
